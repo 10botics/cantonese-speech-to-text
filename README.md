@@ -194,28 +194,36 @@ The logging panel provides detailed insights:
 
 ## 🧪 Testing the Application
 
-### API Integration Test
+We provide a comprehensive test suite to validate all features and functionality.
+
+### Quick Test
 ```bash
 # Set your API key as environment variable
 export FAL_API_KEY="your-api-key-here"
 
-# Run the basic API test
-node test-template.js
+# Run basic API integration test
+node tests/api/test-template.js
+
+# Run Cantonese-specific test
+node tests/api/test-cantonese.js
+
+# Run speaker identification test
+node tests/api/test-speaker-identification.js
 ```
 
-### Speaker Identification Test
-```bash
-# Test with comprehensive participant data (DeepSeek R1)
-node test-speaker-identification.js
-```
+### Comprehensive Testing
+For detailed testing instructions, performance benchmarks, and troubleshooting, see:
 
-This validates:
-- API key authentication
-- Speech-to-text accuracy
-- Speaker diarization quality
+**📁 [Test Suite Documentation](tests/README.md)**
+
+The test suite validates:
+- API key authentication and connectivity
+- Speech-to-text accuracy for Cantonese content
+- Speaker diarization quality and timing
 - AI participant identification with DeepSeek R1
-- Response format consistency
-- Performance benchmarks
+- Chinese character conversion accuracy
+- Audio synchronization and highlighting
+- Response format consistency and performance benchmarks
 
 ## 🔑 Getting Your Fal.ai API Key
 

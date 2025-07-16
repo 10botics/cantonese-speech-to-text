@@ -1,12 +1,39 @@
 {
   "name": "cantonese-speech-to-text",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Professional web application for Cantonese speech-to-text transcription with AI-powered speaker identification and interactive audio playback",
+  "author": "Your Name",
+  "license": "MIT",
+  "keywords": [
+    "cantonese",
+    "speech-to-text",
+    "transcription",
+    "speaker-identification",
+    "ai",
+    "elevenlabs",
+    "deepseek",
+    "chinese",
+    "audio",
+    "nextjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/cantonese-speech-to-text.git"
+  },
+  "homepage": "https://your-username.github.io/cantonese-speech-to-text",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node tests/api/test-template.js",
+    "test:cantonese": "node tests/api/test-cantonese.js",
+    "test:speaker": "node tests/api/test-speaker-identification.js",
+    "test:all": "npm run test && npm run test:cantonese && npm run test:speaker",
+    "clean": "rm -rf .next out",
+    "export": "next export",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@fal-ai/client": "^1.6.0",
@@ -16,7 +43,7 @@
     "autoprefixer": "^10.0.1",
     "chinese-s2t": "^1.0.0",
     "lucide-react": "^0.294.0",
-    "next": "14.0.4",
+    "next": "^14.2.30",
     "postcss": "^8",
     "react": "^18",
     "react-dom": "^18",

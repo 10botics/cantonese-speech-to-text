@@ -36,11 +36,11 @@ interface TranscriptionSegment {
 }
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState('2349dc38-85b4-4494-a360-e7e03c21b16f:aaf08fef42a4362c6cc03bb0a4b10b74')
+  const [apiKey, setApiKey] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [transcription, setTranscription] = useState<TranscriptionSegment[]>([])
   const [error, setError] = useState('')
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false)
+  const [showApiKeyInput, setShowApiKeyInput] = useState(true)
   const [languageCode, setLanguageCode] = useState('yue') // Default to Cantonese
   const [progressStatus, setProgressStatus] = useState('')
   const [processingLogs, setProcessingLogs] = useState<string[]>([])

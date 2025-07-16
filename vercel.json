@@ -1,11 +1,6 @@
 {
   "version": 2,
   "name": "cantonese-speech-to-text",
-  "build": {
-    "env": {
-      "NEXT_PUBLIC_APP_URL": "@app-url"
-    }
-  },
   "functions": {
     "app/**/*.{js,ts,tsx}": {
       "maxDuration": 300

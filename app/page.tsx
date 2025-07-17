@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, Settings, Loader2, FileAudio, Play, Pause } from 'lucide-react'
-import { fal } from '@fal-ai/client'
+
 
 // Import Chinese character conversion (client-side only)
 let Chinese: any = null
@@ -36,11 +36,11 @@ interface TranscriptionSegment {
 }
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState('')
+
   const [isUploading, setIsUploading] = useState(false)
   const [transcription, setTranscription] = useState<TranscriptionSegment[]>([])
   const [error, setError] = useState('')
-  const [showApiKeyInput, setShowApiKeyInput] = useState(true)
+
   const [languageCode, setLanguageCode] = useState('yue') // Default to Cantonese
   const [progressStatus, setProgressStatus] = useState('')
   const [processingLogs, setProcessingLogs] = useState<string[]>([])
@@ -56,6 +56,7 @@ export default function Home() {
   // Speaker identification features
   const [enableSpeakerIdentification, setEnableSpeakerIdentification] = useState(false)
   const [participantNames, setParticipantNames] = useState('')
+  const [isLoadingDemo, setIsLoadingDemo] = useState(false)
   const [speakerMappings, setSpeakerMappings] = useState<Record<string, string>>({})
   const [isIdentifyingSpeakers, setIsIdentifyingSpeakers] = useState(false)
   
@@ -285,99 +286,78 @@ export default function Home() {
       
       const identificationStart = Date.now()
       
-      const result = await fal.subscribe('fal-ai/any-llm', {
-        input: {
-          model: "deepseek/deepseek-r1",
-          system_prompt: "You are a meeting analysis expert. Respond with only valid JSON. Do not include any explanations or additional text.",
-          prompt: `You are analyzing a meeting transcript to identify speakers based on their roles and topics they discuss.
-
-Participant List:
-${participantList}
-
-Meeting Transcript:
-${transcript}
-
-Please match each speaker to a participant based on:
-- Their role in the meeting (chairperson, questioner, responder)  
-- The topics they discuss (housing, police, general council matters)
-- Their speaking patterns and authority level
-
-Return only valid JSON with speaker mappings. Use "Unknown" if unsure.
-Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker 4": "name"}`
+      // Call backend API for speaker identification
+      const response = await fetch('/api/speaker-identify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === 'IN_PROGRESS') {
-            addLog('🧠 DeepSeek R1 is analyzing conversation patterns...')
-          }
-        }
+        body: JSON.stringify({
+          transcriptSegments,
+          participantList
+        }),
       })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        
+        // Handle rate limiting specifically
+        if (response.status === 429) {
+          const hours = Math.ceil((errorData.rateLimitInfo?.resetTime - Date.now()) / (60 * 60 * 1000))
+          throw new Error(`⚠️ Rate limit exceeded! You can only identify speakers 10 times per 24 hours. Please try again in ${hours} hour${hours !== 1 ? 's' : ''}.`)
+        }
+        
+        throw new Error(errorData.message || errorData.error || 'Speaker identification failed')
+      }
+
+      const backendResult = await response.json()
+      
+      // Log rate limit info
+      if (backendResult.rateLimitInfo) {
+        addLog(`📊 Speaker ID rate limit: ${backendResult.rateLimitInfo.remaining}/${backendResult.rateLimitInfo.limit} requests remaining`)
+      }
 
       const identificationTime = ((Date.now() - identificationStart) / 1000).toFixed(1)
       addLog(`⚡ Speaker identification completed in ${identificationTime} seconds`)
 
       // Log the complete API response for debugging
       addLog('📋 Raw DeepSeek R1 API Response:')
-      const resultWithLogs = result as any // Type assertion to access logs
-      addLog(`🔍 Response Status: ${resultWithLogs.logs ? 'Success with logs' : 'Success'}`)
-      addLog(`📝 Model Used: ${result.data?.model || 'deepseek/deepseek-r1'}`)
+      addLog(`🔍 Response Status: Success`)
+      addLog(`📝 Model Used: deepseek/deepseek-r1`)
       
-      if (result.data?.output) {
-        const responseText = result.data.output.trim()
+      if (backendResult.rawResponse) {
+        const responseText = backendResult.rawResponse.trim()
         addLog(`💬 Full Response Text: "${responseText.substring(0, 200)}${responseText.length > 200 ? '...' : ''}"`)
         addLog(`📏 Response Length: ${responseText.length} characters`)
       }
 
       // Log any processing logs from the API
-      if (resultWithLogs.logs && Array.isArray(resultWithLogs.logs) && resultWithLogs.logs.length > 0) {
-        addLog(`📊 API Processing Logs (${resultWithLogs.logs.length} entries):`)
-        resultWithLogs.logs.forEach((log: any, index: number) => {
+      if (backendResult.logs && Array.isArray(backendResult.logs) && backendResult.logs.length > 0) {
+        addLog(`📊 API Processing Logs (${backendResult.logs.length} entries):`)
+        backendResult.logs.forEach((log: any, index: number) => {
           addLog(`   ${index + 1}. ${log.message || log}`)
         })
       }
 
-      // Parse the JSON response
-      let mappings: Record<string, string> = {}
+      // Use the parsed mappings from backend
+      const mappings: Record<string, string> = backendResult.mappings || {}
       
-      try {
-        const responseText = result.data.output.trim()
-        addLog('🔧 Attempting to parse AI response as JSON...')
-        
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-        
-        if (jsonMatch) {
-          const extractedJson = jsonMatch[0]
-          addLog(`🎯 Extracted JSON: ${extractedJson}`)
-          
-          mappings = JSON.parse(extractedJson)
-          addLog('✅ Successfully parsed AI response')
-          addLog(`🗂️ Parsed mappings object: ${JSON.stringify(mappings, null, 2)}`)
-          
-          // Log the results with detailed analysis
-          addLog('🎭 Speaker Identification Results:')
-          Object.entries(mappings).forEach(([speaker, name]) => {
-            const status = name === "Unknown" ? "❓" : "🎯"
-            const confidence = name === "Unknown" ? "Low confidence" : "Identified"
-            addLog(`${status} ${speaker}: ${name} (${confidence})`)
-          })
-          
-          const identifiedCount = Object.values(mappings).filter(name => name !== "Unknown").length
-          const totalSpeakers = Object.keys(mappings).length
-          const successRate = totalSpeakers > 0 ? ((identifiedCount / totalSpeakers) * 100).toFixed(1) : '0'
-          
-          addLog(`📊 Identification Summary: ${identifiedCount}/${totalSpeakers} speakers identified (${successRate}% success rate)`)
-          
-        } else {
-          addLog('⚠️ No valid JSON found in response - response may contain non-JSON content')
-          addLog(`📄 Full response for debugging: "${responseText}"`)
-          mappings = {}
-        }
-      } catch (parseError) {
-        const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown parsing error'
-        addLog(`❌ JSON parsing failed: ${errorMsg}`)
-        addLog(`🔍 Raw response that failed to parse: "${result.data?.output || 'No output received'}"`)
-        mappings = {}
-      }
+      addLog('✅ Successfully received AI response from backend')
+      addLog(`🗂️ Parsed mappings object: ${JSON.stringify(mappings, null, 2)}`)
+      
+      // Log the results with detailed analysis
+      addLog('🎭 Speaker Identification Results:')
+      Object.entries(mappings).forEach(([speaker, name]) => {
+        const status = name === "Unknown" ? "❓" : "🎯"
+        const confidence = name === "Unknown" ? "Low confidence" : "Identified"
+        addLog(`${status} ${speaker}: ${name} (${confidence})`)
+      })
+      
+      const identifiedCount = Object.values(mappings).filter(name => name !== "Unknown").length
+      const totalSpeakers = Object.keys(mappings).length
+      const successRate = totalSpeakers > 0 ? ((identifiedCount / totalSpeakers) * 100).toFixed(1) : '0'
+      
+      addLog(`📊 Identification Summary: ${identifiedCount}/${totalSpeakers} speakers identified (${successRate}% success rate)`)
 
       setSpeakerMappings(mappings)
       return mappings
@@ -391,14 +371,31 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
     }
   }
 
-  // Call Fal.ai API using official client
-  const transcribeAudio = async (file: File) => {
-    if (!apiKey) {
-      setError('Please enter your Fal.ai API key')
-      setShowApiKeyInput(true)
-      return
-    }
+  // Check audio duration client-side
+  const checkAudioDuration = async (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const audio = new Audio()
+      const audioUrl = URL.createObjectURL(file)
+      
+      audio.addEventListener('loadedmetadata', () => {
+        URL.revokeObjectURL(audioUrl)
+        resolve(audio.duration)
+      })
+      
+      audio.addEventListener('error', () => {
+        URL.revokeObjectURL(audioUrl)
+        reject(new Error('Could not read audio duration'))
+      })
+      
+      audio.src = audioUrl
+    })
+  }
 
+  // Call backend API for transcription
+  const transcribeAudio = async (file: File, forceSpeakerID?: boolean, forceParticipants?: string) => {
+    // Use forced values if provided (for demo), otherwise use state
+    const useSpeakerID = forceSpeakerID !== undefined ? forceSpeakerID : enableSpeakerIdentification
+    const useParticipants = forceParticipants !== undefined ? forceParticipants : participantNames
     // Reset states
     setIsUploading(true)
     setError('')
@@ -421,48 +418,71 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
     setStartTime(start)
 
     try {
-      // Configure the Fal.ai client with the API key
       addLog(`🚀 Starting transcription for file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
       addLog(`🗣️ Language: ${languageCode || 'Auto-detect'}`)
       addLog(`🈂️ Chinese conversion: ${enableChineseConversion ? 'Enabled' : 'Disabled'}`)
-      addLog(`🤖 Speaker identification: ${enableSpeakerIdentification ? 'Enabled' : 'Disabled'}`)
+      addLog(`🤖 Speaker identification: ${useSpeakerID ? 'Enabled' : 'Disabled'}`)
+      if (useSpeakerID && useParticipants) {
+        addLog(`👥 Participants ready: ${useParticipants.split(',').length} names loaded`)
+      }
       
-      setProgressStatus('Configuring API client...')
-      fal.config({
-        credentials: apiKey
-      })
-      addLog('✅ API client configured successfully')
-
-      setProgressStatus('Uploading audio file...')
-      addLog('📤 Uploading audio file to Fal.ai...')
-
-      // Use the official client to call the API
-      const result = await fal.subscribe('fal-ai/elevenlabs/speech-to-text', {
-        input: {
-          audio_url: file, // The client will auto-upload the file
-          language_code: languageCode || undefined, // Use undefined for auto-detect
-          tag_audio_events: true,
-          diarize: true
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === 'IN_QUEUE') {
-            setProgressStatus('Queued for processing...')
-            addLog('⏳ Request queued for processing')
-          } else if (update.status === 'IN_PROGRESS') {
-            setProgressStatus('Processing audio...')
-            addLog('🔄 Processing audio with ElevenLabs AI...')
-            
-            // Log any additional progress messages from the API
-            if (update.logs && update.logs.length > 0) {
-              update.logs.forEach(log => {
-                addLog(`📋 ${log.message}`)
-              })
-            }
-          }
+      // Check audio duration
+      setProgressStatus('Checking audio duration...')
+      addLog('⏱️ Checking audio duration...')
+      
+      let duration = 0
+      try {
+        duration = await checkAudioDuration(file)
+        addLog(`📏 Audio duration: ${Math.round(duration)}s (${Math.round(duration / 60 * 10) / 10} minutes)`)
+        
+        if (duration > 10 * 60) {
+          throw new Error(`Audio file is too long (${Math.round(duration / 60 * 10) / 10} minutes). Maximum allowed: 10 minutes. Please use a shorter audio file.`)
         }
+        
+        if (duration > 5 * 60) {
+          addLog('⚠️ Large audio file detected. Processing may take longer.')
+        }
+      } catch (durationError) {
+        if (durationError instanceof Error && durationError.message.includes('too long')) {
+          throw durationError
+        }
+        addLog('⚠️ Could not determine audio duration. Proceeding with upload.')
+      }
+      
+      setProgressStatus('Uploading audio file...')
+      addLog('📤 Uploading audio file to backend...')
+
+      // Create form data for backend API
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('languageCode', languageCode || '')
+      formData.append('duration', duration.toString())
+
+      // Call backend API
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
       })
 
+      if (!response.ok) {
+        const errorData = await response.json()
+        
+        // Handle rate limiting specifically
+        if (response.status === 429) {
+          const hours = Math.ceil((errorData.rateLimitInfo?.resetTime - Date.now()) / (60 * 60 * 1000))
+          throw new Error(`⚠️ Rate limit exceeded! You can only process 10 audio files per 24 hours. Please try again in ${hours} hour${hours !== 1 ? 's' : ''}.`)
+        }
+        
+        throw new Error(errorData.message || errorData.error || 'Transcription failed')
+      }
+
+      const result = await response.json()
+      
+      // Log rate limit info
+      if (result.rateLimitInfo) {
+        addLog(`📊 Rate limit: ${result.rateLimitInfo.remaining}/${result.rateLimitInfo.limit} requests remaining`)
+      }
+      
       const processingTime = ((Date.now() - start) / 1000).toFixed(2)
       addLog(`⚡ Processing completed in ${processingTime} seconds`)
       
@@ -564,11 +584,16 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
       setTranscription(segments)
       
       // Run AI speaker identification if enabled
-      if (enableSpeakerIdentification && participantNames.trim()) {
+      addLog(`🔍 Checking speaker identification: enabled=${useSpeakerID}, participants=${useParticipants ? 'provided' : 'empty'}`)
+      
+      if (useSpeakerID && useParticipants?.trim()) {
+        addLog(`🤖 Starting AI speaker identification with ${useParticipants.split(',').length} participants`)
         setProgressStatus('Identifying speakers with AI...')
-        await identifySpeakers(segments, participantNames)
-      } else if (enableSpeakerIdentification && !participantNames.trim()) {
+        await identifySpeakers(segments, useParticipants)
+      } else if (useSpeakerID && !useParticipants?.trim()) {
         addLog('⚠️ Speaker identification enabled but no participants provided')
+      } else if (!useSpeakerID) {
+        addLog('ℹ️ Speaker identification disabled - skipping AI analysis')
       }
       
       setProgressStatus('Completed!')
@@ -599,7 +624,7 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
     } else {
       setError('Please upload an audio file')
     }
-  }, [apiKey, languageCode])
+  }, [languageCode])
 
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -610,6 +635,51 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
     const file = e.target.files?.[0]
     if (file) {
       transcribeAudio(file)
+    }
+  }
+
+  // Load demo data
+  const loadDemo = async () => {
+    setIsLoadingDemo(true)
+    addLog('🎬 Loading demo data...')
+    addLog('📋 Demo source: 觀塘區議會第七次會議 - 其他事項 (2025-01-06)')
+    addLog('🔗 Source: https://www.districtcouncils.gov.hk/kt/tc_chi/meetings/dcmeetings/dc_meetings_audio.php?meeting_id=28585')
+    
+    try {
+      // Load demo participant names
+      const participantsResponse = await fetch('/demo-participants.txt')
+      const participantsText = await participantsResponse.text()
+      const participantList = participantsText.trim().split('\n').join(', ')
+      
+      // Set states and wait for them to update
+      setParticipantNames(participantList)
+      setEnableSpeakerIdentification(true)
+      addLog(`👥 Loaded ${participantsText.trim().split('\n').length} demo participants from council meeting`)
+      addLog(`🎯 Speaker identification: ENABLED for demo`)
+      addLog(`📝 Participants preview: ${participantList.substring(0, 100)}...`)
+      
+      // Load demo audio file
+      const audioResponse = await fetch('/demo-audio.mp3')
+      const audioBlob = await audioResponse.blob()
+      const audioFile = new File([audioBlob], 'kwun-tong-council-meeting-demo.mp3', { type: 'audio/mpeg' })
+      
+      addLog(`🎵 Loaded demo audio: Kwun Tong District Council meeting excerpt (${(audioFile.size / 1024 / 1024).toFixed(2)} MB)`)
+      addLog('⚖️ Audio content: Official government meeting proceedings in Cantonese')
+      
+      // Small delay to ensure state updates are applied
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      addLog('🚀 Starting demo transcription with speaker identification...')
+      
+      // Start transcription with demo file, passing speaker ID settings directly
+      await transcribeAudio(audioFile, true, participantList)
+      
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to load demo'
+      setError(`Demo loading failed: ${errorMsg}`)
+      addLog(`❌ Demo loading error: ${errorMsg}`)
+    } finally {
+      setIsLoadingDemo(false)
     }
   }
 
@@ -624,34 +694,24 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
           <p className="text-gray-600">
             AI-powered transcription with speaker identification
           </p>
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-700">
+              <strong>Usage Limits:</strong> 10 requests per 24 hours • Maximum 10 minutes audio • 50MB file size limit
+            </p>
+          </div>
+          <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+            <p className="text-sm text-green-700">
+              <strong>🎬 Demo Available:</strong> Try our sample Cantonese council meeting audio with speaker identification
+            </p>
+            <p className="text-xs text-green-600 mt-1">
+              <strong>Source:</strong> <a href="https://www.districtcouncils.gov.hk/kt/tc_chi/meetings/dcmeetings/dc_meetings_audio.php?meeting_id=28585" target="_blank" rel="noopener noreferrer" className="underline hover:text-green-800">觀塘區議會第七次會議</a> - 其他事項 (4:38) © Hong Kong District Councils
+            </p>
+          </div>
         </div>
 
         {/* Configuration */}
         <div className="max-w-md mx-auto mb-8 space-y-4">
-          {/* API Key Input */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Settings className="w-4 h-4 text-gray-500" />
-              <label className="text-sm font-medium text-gray-700">
-                Fal.ai API Key
-              </label>
-              <button
-                onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                className="text-xs text-elevenlabs-purple hover:underline"
-              >
-                {showApiKeyInput ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            {(showApiKeyInput || !apiKey) && (
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter your Fal.ai API key"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-elevenlabs-purple focus:border-transparent"
-              />
-            )}
-          </div>
+
 
           {/* Language Selection */}
           <div>
@@ -735,7 +795,12 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
             onDrop={onDrop}
             onDragOver={onDragOver}
             className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-elevenlabs-purple transition-colors cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(e) => {
+              // Only open file picker if not clicking demo button
+              if (!isLoadingDemo && !isUploading && !isIdentifyingSpeakers) {
+                fileInputRef.current?.click()
+              }
+            }}
           >
             <input
               ref={fileInputRef}
@@ -745,13 +810,13 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
               className="hidden"
             />
             
-            {isUploading || isIdentifyingSpeakers ? (
+            {isUploading || isIdentifyingSpeakers || isLoadingDemo ? (
               <div className="flex flex-col items-center">
                 <Loader2 className="w-12 h-12 text-elevenlabs-purple animate-spin mb-4" />
                 <p className="text-gray-600 font-medium">
-                  {isIdentifyingSpeakers ? 'Identifying speakers with AI...' : progressStatus}
+                  {isLoadingDemo ? 'Loading demo...' : isIdentifyingSpeakers ? 'Identifying speakers with AI...' : progressStatus}
                 </p>
-                {startTime && !isIdentifyingSpeakers && (
+                {startTime && !isIdentifyingSpeakers && !isLoadingDemo && (
                   <p className="text-gray-500 text-sm mt-1">
                     Elapsed: {Math.floor((Date.now() - startTime) / 1000)}s
                   </p>
@@ -759,6 +824,11 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
                 {isIdentifyingSpeakers && (
                   <p className="text-gray-500 text-sm mt-1">
                     🤖 DeepSeek R1 analyzing conversation patterns...
+                  </p>
+                )}
+                {isLoadingDemo && (
+                  <p className="text-gray-500 text-sm mt-1">
+                    🎬 Loading demo audio and participant list...
                   </p>
                 )}
               </div>
@@ -771,9 +841,24 @@ Format: {"Speaker 1": "name", "Speaker 2": "name", "Speaker 3": "name", "Speaker
                 <p className="text-gray-500 mb-4">
                   or click to browse files
                 </p>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <Upload className="w-4 h-4" />
-                  Supports MP3, WAV, M4A and other audio formats
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Upload className="w-4 h-4" />
+                    Supports MP3, WAV, M4A and other audio formats
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-400 text-sm">or</span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        loadDemo()
+                      }}
+                    >
+                      🎬 Try Demo
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

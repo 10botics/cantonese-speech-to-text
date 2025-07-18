@@ -423,7 +423,7 @@ export default function Home() {
       addLog(`🈂️ Chinese conversion: ${enableChineseConversion ? 'Enabled' : 'Disabled'}`)
       addLog(`🤖 Speaker identification: ${useSpeakerID ? 'Enabled' : 'Disabled'}`)
       if (useSpeakerID && useParticipants) {
-        addLog(`👥 Participants ready: ${useParticipants.split(',').length} names loaded`)
+        addLog(`👥 Participant information loaded and ready`)
       }
       
       // Check audio duration
@@ -587,7 +587,7 @@ export default function Home() {
       addLog(`🔍 Checking speaker identification: enabled=${useSpeakerID}, participants=${useParticipants ? 'provided' : 'empty'}`)
       
       if (useSpeakerID && useParticipants?.trim()) {
-        addLog(`🤖 Starting AI speaker identification with ${useParticipants.split(',').length} participants`)
+        addLog(`🤖 Starting AI speaker identification with participant information`)
         setProgressStatus('Identifying speakers with AI...')
         await identifySpeakers(segments, useParticipants)
       } else if (useSpeakerID && !useParticipants?.trim()) {
@@ -649,14 +649,14 @@ export default function Home() {
       // Load demo participant names
       const participantsResponse = await fetch('/demo-participants.txt')
       const participantsText = await participantsResponse.text()
-      const participantList = participantsText.trim().split('\n').join(', ')
+      const participantList = participantsText.trim()
       
       // Set states and wait for them to update
       setParticipantNames(participantList)
       setEnableSpeakerIdentification(true)
       addLog(`👥 Loaded ${participantsText.trim().split('\n').length} demo participants from council meeting`)
       addLog(`🎯 Speaker identification: ENABLED for demo`)
-      addLog(`📝 Participants preview: ${participantList.substring(0, 100)}...`)
+      addLog(`📝 Participant info loaded: ${participantList.substring(0, 50)}...`)
       
       // Load demo audio file
       const audioResponse = await fetch('/demo-audio.mp3')
@@ -689,22 +689,22 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Cantonese Speech to Text
+             AI 廣東話會議記錄謄寫
           </h1>
           <p className="text-gray-600">
-            AI-powered transcription with speaker identification
+            智能語音轉錄及說話者識別
           </p>
           <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-700">
-              <strong>Usage Limits:</strong> 10 requests per 24 hours • Maximum 10 minutes audio • 50MB file size limit
+              <strong>使用限制：</strong>每24小時10次請求 • 最長10分鐘音頻 • 檔案大小限制50MB
             </p>
           </div>
           <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
             <p className="text-sm text-green-700">
-              <strong>🎬 Demo Available:</strong> Try our sample Cantonese council meeting audio with speaker identification
+              <strong>🎬 示範可用：</strong> 試用粵語區議會會議音頻及說話者識別功能
             </p>
             <p className="text-xs text-green-600 mt-1">
-              <strong>Source:</strong> <a href="https://www.districtcouncils.gov.hk/kt/tc_chi/meetings/dcmeetings/dc_meetings_audio.php?meeting_id=28585" target="_blank" rel="noopener noreferrer" className="underline hover:text-green-800">觀塘區議會第七次會議</a> - 其他事項 (4:38) © Hong Kong District Councils
+              <strong>來源：</strong> <a href="https://www.districtcouncils.gov.hk/kt/tc_chi/meetings/dcmeetings/dc_meetings_audio.php?meeting_id=28585" target="_blank" rel="noopener noreferrer" className="underline hover:text-green-800">觀塘區議會第七次會議</a> - 其他事項 (4:38) © 香港區議會
             </p>
           </div>
         </div>
@@ -716,22 +716,22 @@ export default function Home() {
           {/* Language Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Language
+              語言選擇
             </label>
             <select
               value={languageCode}
               onChange={(e) => setLanguageCode(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-elevenlabs-purple focus:border-transparent"
             >
-              <option value="yue">Cantonese (廣東話)</option>
-              <option value="zho">Mandarin Chinese (中文)</option>
-              <option value="eng">English</option>
-              <option value="spa">Spanish</option>
-              <option value="fra">French</option>
-              <option value="deu">German</option>
-              <option value="jpn">Japanese</option>
-              <option value="kor">Korean</option>
-              <option value="">Auto-detect</option>
+              <option value="yue">粵語 (Cantonese)</option>
+              <option value="zho">普通話 (Mandarin)</option>
+              <option value="eng">英語 (English)</option>
+              <option value="spa">西班牙語 (Spanish)</option>
+              <option value="fra">法語 (French)</option>
+              <option value="deu">德語 (German)</option>
+              <option value="jpn">日語 (Japanese)</option>
+              <option value="kor">韓語 (Korean)</option>
+              <option value="">自動偵測</option>
             </select>
           </div>
 
@@ -746,24 +746,31 @@ export default function Home() {
                 className="h-4 w-4 text-elevenlabs-purple focus:ring-elevenlabs-purple border-gray-300 rounded"
               />
               <label htmlFor="enableSpeakerID" className="ml-2 text-sm font-medium text-gray-700">
-                AI Speaker Identification 🤖
+                AI 說話者識別 🤖
               </label>
             </div>
             
             {enableSpeakerIdentification && (
               <div>
                 <label className="block text-sm text-gray-600 mb-2">
-                  Participant Names (comma-separated)
+                  參與者資訊
                 </label>
                 <textarea
                   value={participantNames}
                   onChange={(e) => setParticipantNames(e.target.value)}
-                  placeholder="e.g., John Smith (Chairman), Mary Wong (Housing Manager), David Lee..."
+                  placeholder={`您可以使用任何格式，例如：
+
+• 張三先生 (主席)
+• 李四女士 - 房屋部經理  
+• 王五先生，警務處代表
+• 陳六女士 市民代表
+
+或者從會議議程直接複製貼上...`}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-elevenlabs-purple focus:border-transparent resize-none"
-                  rows={3}
+                  rows={5}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  💡 Include roles/titles for better identification. Powered by DeepSeek R1.
+                  💡 AI 會自動理解任何格式。包含職位/頭銜可提高識別準確性。
                 </p>
               </div>
             )}
@@ -780,11 +787,11 @@ export default function Home() {
                 className="h-4 w-4 text-elevenlabs-purple focus:ring-elevenlabs-purple border-gray-300 rounded"
               />
               <label htmlFor="enableChineseConversion" className="ml-2 text-sm font-medium text-gray-700">
-                Chinese Character Conversion 🈂️
+                中文字體轉換 🈂️
               </label>
             </div>
             <p className="text-xs text-gray-500 ml-6">
-              💡 Automatically convert simplified Chinese to traditional Chinese characters.
+              💡 自動將簡體中文轉換為繁體中文字。
             </p>
           </div>
         </div>
@@ -814,7 +821,7 @@ export default function Home() {
               <div className="flex flex-col items-center">
                 <Loader2 className="w-12 h-12 text-elevenlabs-purple animate-spin mb-4" />
                 <p className="text-gray-600 font-medium">
-                  {isLoadingDemo ? 'Loading demo...' : isIdentifyingSpeakers ? 'Identifying speakers with AI...' : progressStatus}
+                  {isLoadingDemo ? '載入示範中...' : isIdentifyingSpeakers ? 'AI 識別說話者中...' : progressStatus}
                 </p>
                 {startTime && !isIdentifyingSpeakers && !isLoadingDemo && (
                   <p className="text-gray-500 text-sm mt-1">
@@ -823,12 +830,12 @@ export default function Home() {
                 )}
                 {isIdentifyingSpeakers && (
                   <p className="text-gray-500 text-sm mt-1">
-                    🤖 DeepSeek R1 analyzing conversation patterns...
+                    🤖 DeepSeek R1 分析對話模式中...
                   </p>
                 )}
                 {isLoadingDemo && (
                   <p className="text-gray-500 text-sm mt-1">
-                    🎬 Loading demo audio and participant list...
+                    🎬 載入示範音頻及參與者名單中...
                   </p>
                 )}
               </div>
@@ -836,18 +843,18 @@ export default function Home() {
               <div className="flex flex-col items-center">
                 <FileAudio className="w-12 h-12 text-gray-400 mb-4" />
                 <p className="text-lg font-medium text-gray-900 mb-2">
-                  Drop your audio file here
+                  將音頻檔案拖放到此處
                 </p>
                 <p className="text-gray-500 mb-4">
-                  or click to browse files
+                  或點擊瀏覽檔案
                 </p>
                 <div className="flex flex-col items-center gap-3">
                   <div className="flex items-center gap-2 text-sm text-gray-400">
                     <Upload className="w-4 h-4" />
-                    Supports MP3, WAV, M4A and other audio formats
+                    支援 MP3, WAV, M4A 及其他音頻格式
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-gray-400 text-sm">or</span>
+                    <span className="text-gray-400 text-sm">或</span>
                     <button
                       type="button"
                       className="inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -856,7 +863,7 @@ export default function Home() {
                         loadDemo()
                       }}
                     >
-                      🎬 Try Demo
+                      🎬 試用示範
                     </button>
                   </div>
                 </div>
@@ -943,7 +950,7 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                   {Object.keys(speakerMappings).length > 0 && (
                     <span className="text-sm text-green-600 font-medium">
-                      🎯 {Object.values(speakerMappings).filter(name => name !== "Unknown").length} speakers identified
+                      🎯 已識別 {Object.values(speakerMappings).filter(name => name !== "Unknown").length} 位說話者
                     </span>
                   )}
                   <button
@@ -951,20 +958,20 @@ export default function Home() {
                     disabled={isIdentifyingSpeakers || !participantNames.trim()}
                     className="px-4 py-2 bg-elevenlabs-purple text-white text-sm rounded-lg hover:bg-elevenlabs-purple/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {isIdentifyingSpeakers ? 'Identifying...' : 'Clear & Re-identify'}
+                    {isIdentifyingSpeakers ? '識別中...' : '清除並重新識別'}
                   </button>
                 </div>
               )}
             </div>
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="text-sm text-gray-500 mb-4 flex items-center justify-between">
-                <span>Click on any word to jump to that time in the audio</span>
-                {isPlaying && (
-                  <span className="text-elevenlabs-purple font-medium flex items-center gap-1">
-                    <div className="w-2 h-2 bg-elevenlabs-purple rounded-full animate-pulse"></div>
-                    Playing
-                  </span>
-                )}
+                <span>點擊任何字詞可跳至音頻中的對應時間</span>
+                                  {isPlaying && (
+                    <span className="text-elevenlabs-purple font-medium flex items-center gap-1">
+                      <div className="w-2 h-2 bg-elevenlabs-purple rounded-full animate-pulse"></div>
+                      播放中
+                    </span>
+                  )}
               </div>
               
               {/* Interactive Speaker Segments with word-level highlighting */}
